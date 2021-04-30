@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,15 +24,18 @@ public class FileTree implements Operate {
     @Override
     public Object operate() throws Exception {
         String startPath = serverRequest.queryParam("path").orElse("/");
+        String fixedPath = startPath.endsWith("//") ? startPath.replace("//", "/") : startPath;
 
-        try (Stream<Path> stream = Files.walk(Paths.get(startPath), 1)) {
+        System.out.println(String.format("Path : %s", fixedPath));
+
+        try (Stream<Path> stream = Files.walk(Paths.get(fixedPath).toAbsolutePath(), 1)) {
             List<LogTreeVO> logTreeVOList = stream
             		 .filter(file -> Files.isDirectory(file))
                      .map((path) -> LogTreeVO.builder()
                                  .hasChild(Files.exists(path))
                                  .childCount(new File(path.toString()).list().length)
-                                 .path(startPath + path.getFileName() + "/")
-                                 .isParent(false)
+                                 .path(fixedPath + path.getFileName() + "/")
+                                 .isParent(new File(path.toString()).list().length != 0 ? true : false)
                                  .label(path.getFileName().toString())
                                  .build())
                      .collect(Collectors.toList());
@@ -43,7 +47,7 @@ public class FileTree implements Operate {
             LogTreeVO logRootVO = LogTreeVO.builder()
                     .hasChild(Files.exists(rootPath))
                     .path(rootPath.toAbsolutePath().toString()+ "/")
-                    .isParent(true)
+                    .isParent(true) 
                     .label("...")
                     .build();
 

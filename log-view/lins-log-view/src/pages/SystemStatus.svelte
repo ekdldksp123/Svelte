@@ -2,22 +2,27 @@
         href="https://unpkg.com/mdbsvelte@latest/dist/mdbsvelte.js">
     import { FormGroup, Input, Label, Collapse, CardHeader,CardText, Card, CardBody } from 'sveltestrap';
     import { MDBContainer, MDBRow, MDBCol, MDBBtn, MDBCard, MDBCardBody, MDBBadge, MDBCardTitle, MDBCardText, MDBListGroup, MDBListGroupItem} from "mdbsvelte";
-    import { Svroller   } from 'svrollbar'
+    import { Svroller } from 'svrollbar'
     import Datepicker from 'svelte-calendar';
-    import Button from "../components/Button.svelte";
+    import { getComparator } from "../utilities/helper.js";
     import "../../public/css/Table.css";
+    import "../../public/css/button.css";
 
     let userValue = '';
     let tree = [];
+    $: treeClone = [...tree];
     let fileList = [];
     let hostUrl = "http://localhost:7000";
     let fileContent = "No file selected";
     let fileTitle = "";
-
+    $:fileTitleClone = fileTitle;
+    $:fileContentClone = fileContent;
 
     let logPaths = [];
+    let logPathsCopy = [];
+    $: newLogPath = [...logPaths];
 
-    let logData1 = [
+    const logData1 = [
         {title:"91_NextCMS_Log",path:"C:/Users/ekdldksp12/Desktop/산하정보기술/네이트온", active: false},
         {title:"com", path:"D:/boot-workspace/WINGS-API-CMS/08_WingsCMS_Distributed", active: false},
         {title:"oper01", path:"D:/boot-workspace/WINGS-API-CMS/11_WingsCMS", active: false},
@@ -27,7 +32,7 @@
     ];
 
     
-    let logData2 = [
+    const logData2 = [
         {title:"NextCMS_Log2",path:"C:/Users/ekdldksp12/Desktop/산하정보기술/네이트온", active: false},
         {title:"com2", path:"D:/boot-workspace/WINGS-API-CMS/08_WingsCMS_Distributed", active: false},
         {title:"oper03", path:"D:/boot-workspace/WINGS-API-CMS/11_WingsCMS", active: false},
@@ -36,7 +41,7 @@
         {title:"spring-boot2", path: "D:/boot-workspace/WINGS-API-CMS", active: false}
     ];
 
-    let serverData = [
+    const serverData = [
         ["WAS7", [...logData1]],
         ["WAS8", [...logData2]],
     ];
@@ -44,56 +49,67 @@
     const columns = ["FileName", "Process", "CreationTime"];
 
     const clickLogPath = (path, index) => {
+        fileList = [];
 
         const groupList = document.querySelectorAll('div.item');
-        
+        logPathsCopy = [...logPaths];
+        logPaths = [];
         let i = 0, length = groupList.length;
         for ( ; i < length; i++) {
             if(i === index){
-                logPaths[i].active = true;
+                logPathsCopy[i].active = true;
             } else {
-                logPaths[i].active = false;
+                logPathsCopy[i].active = false;
             }
         }
-        tree = [];
+        logPaths = [...logPathsCopy];
         callFolderTree(path);
     }
 
-    const callFolderTree = (itemPath, isParent) => {
-
-        let path = itemPath ? itemPath : "/Users/dream/test/";
-
+    const callFolderTree = (itemPath) => {
+        
         callFileList(itemPath);
-
-        fetch(`${hostUrl}/file/tree?path=${path}`).then((response) => {
-
+        console.log('click');
+        try{
+            fetch(`${hostUrl}/file/tree?path=${itemPath+'/'}`).then((response) => {
                 response.text().then(function(text) {
+                    console.log("Success:", text);
                     tree = JSON.parse(text);
                 });
             }
         );
+        }catch(error){
+            console.log(`error : ${error}`);
+        }
     }
 
     const callFileList = (itemPath) => {
-        fetch(`${hostUrl}/file/lists?path=${itemPath}`).then((response) => {
-
-                response.text().then(function(text) {
-
-                    fileList = JSON.parse(text);
-                });
-            }
-        );
+        fileList = [];
+        try {
+            fetch(`${hostUrl}/file/lists?path=${itemPath}`).then((response) => {
+                    response.text().then(function(text) {
+                        fileList = JSON.parse(text);
+                    }).catch((error) => console.log(`error : ${error}`));
+                }
+            );
+        } catch(error) {
+            console.log(`error : ${error}`);
+        }
     }
 
     const callOpenFile = (filePath, fileName) => {
-        fetch(`${hostUrl}/file/open?filePath=${filePath}`).then((response) => {
-
-                response.text().then(function(text) {
-                    fileTitle = fileName;
-                    fileContent = text;
-                });
-            }
-        );
+        console.log(`name: ${fileName}, path: ${filePath}`);
+        try {
+            fetch(`${hostUrl}/file/open?filePath=${filePath}`).then((response) => {
+                    response.text().then(function(text) {
+                        fileTitle = fileName;
+                        fileContent = text;
+                    });
+                }
+            );
+        } catch (error) {
+            console.log(`error : ${error}`);
+        }
     }
 
     let sortColumn = null;
@@ -115,9 +131,9 @@
     function sortData() {
     let items = [...fileList];
 
-    if (!data.length) return fileList;
+    if (!fileList.length) return fileList;
 
-    const type = typeof data[0][sortColumn.toLowerCase()];
+    const type = typeof fileList[0][sortColumn.toLowerCase()];
 
     items.sort(getComparator(type, sortColumn));
 
@@ -127,10 +143,18 @@
   $: display = sortColumn && sortDirection ? sortData() : [...fileList];
 
   const onChange = (event) => {
+      logPaths = [];  
       let data = serverData[event.target.value][1];
       console.log(data);
       logPaths = [...data];
+      tree = [];
+      fileList = [];
   }
+
+  const sort = (column) => {
+    return column === sortColumn ? sortDirection : null;
+  }
+
 
 </script>
 
@@ -156,13 +180,8 @@
                                         <Label for='server'><div class='label mt-1'>서버</div></Label>
                                     </MDBCol>  
                                     <MDBCol sm='10' md={{size: 8}} class='pl-0'>  
-                                        <Input 
-                                            type='select' 
-                                            name='server' 
-                                            id='serverSelect'
-                                            on:change={(event) => onChange(event) }
-                                            >  
-                                            <option value="">서버를 선택해주세요</option>
+                                        <Input type='select' name='server' id='serverSelect' on:change={(event) => onChange(event)}>  
+                                            <option>서버를 선택해주세요</option>
                                             {#each serverData as option, index}
                                                 <option value={index}>{option[0]}</option>
                                             {/each}
@@ -211,7 +230,7 @@
                         <div class='overflow-hidden cardBody'>
                             <Svroller width="100%" height="25vh">
                                 <MDBListGroup>
-                                    {#each logPaths as log, index}
+                                    {#each newLogPath as log, index}
                                         <div class="item">
                                             <MDBListGroupItem 
                                                 on:click={() => clickLogPath(log.path, index)}
@@ -235,17 +254,19 @@
                     <div class='overflow-hidden cardBody'>
                         <Svroller width="100%" height="25vh">
                             <MDBListGroup>
-                                {#each tree as item}
-                                    <div class="folder">
-                                        <MDBListGroupItem class="d-flex justify-content-between align-items-center">{item.label}
-                                        {#if item.childCount > 0 }
-                                            <MDBBadge color="deep-orange" pill>{item.childCount}</MDBBadge>
-                                        {:else}                    
-                                            <MDBBadge color="cyan" pill>{item.childCount}</MDBBadge>    
-                                        {/if}
-                                        </MDBListGroupItem>
-                                    </div>
-                                {/each}
+                                {#if tree.length > 0}
+                                    {#each treeClone as item}
+                                        <div class="folder">
+                                            <MDBListGroupItem class="d-flex justify-content-between align-items-center" on:click={() => callFolderTree(item.path)}>{item.label}
+                                            {#if item.childCount > 0 }
+                                                <MDBBadge color="deep-orange" pill>{item.childCount}</MDBBadge>
+                                            {:else}                    
+                                                <MDBBadge color="cyan" pill>{item.childCount}</MDBBadge>    
+                                            {/if}
+                                            </MDBListGroupItem>
+                                        </div>
+                                    {/each}
+                                {/if}
                             </MDBListGroup>
                         </Svroller>
                     </div>
@@ -258,13 +279,15 @@
                 <MDBCard>
                     <MDBCardBody>
                         <div class='overflow-hidden table'>
-                            <Svroller width="100%" height="29.5vh">
+                            <Svroller width="100%" height="29.3vh">
                                 <table>
                                     <thead>
                                       <tr>
                                         {#each columns as column}
                                           <th>
-                                            <Button {sortBy} {column} {sortColumn} {sortDirection} />
+                                            <button on:click={() => sortBy(column)} data-sort={() => sort(column)}>
+                                                {column}
+                                            </button>
                                           </th>
                                         {/each}
                                       </tr>
@@ -297,8 +320,8 @@
                     <div class="logContent overflow-hidden">
                         <Svroller width="100%" height="28vh">
                         <CardText>
-                            <h5 class="card-title log-align ">{fileTitle}</h5>
-                            <p class="card-text log-align ">{@html fileContent}</p>
+                            <h5 class="card-title log-align ">{fileTitleClone}</h5>
+                            <p class="card-text log-align ">{@html fileContentClone}</p>
                         </CardText>
                         </Svroller>
                     </div>
@@ -309,6 +332,7 @@
 </MDBContainer>
 
 <style>
+   
     .label {
         font-weight: bold;
         color: #777;
@@ -319,7 +343,7 @@
     }
 
     .table {
-        height: 29.5vh !important;
+        height: 29.3vh !important;
     }
 
     .content {
